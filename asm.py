@@ -7,55 +7,40 @@ _t16_bwidth = 16
 _t16_brange = [range(-2**_t16_bwidth, (2**_t16_bwidth)-1)]
 _t16_sregs, _t16_fregs, _t16_vregs = (8, 8, 8)
 
-def get_t16():
-	with open(_t16_format_) as f:
-		t16 = {}
-		for ln in f: #Loop generates dictionary. keys:values = t16's op (name:format)
-			opf = [ln][0].split(' ', 1)
-			if len(opf) == 2:
-				t16[opf[0]] = opf[1].replace('\n', '').replace(' ', '')
-	return t16
-
 def get_asm(file):
-	asm = []
-	with open(file) as f:
-		for ln in f: #Loop generates a list of tuples from the input assembly file
-			tmp = [ln][0].split(' ;', 1)
-			cmd = re.split(', | ', tmp[0]) #Removes whitespaces ans commas
-			if len(cmd) > 1:
-				cmd[-1] = cmd[-1].replace('\n', '')
-				asm.append((cmd[0], cmd[1:]))
-	return asm
+	with open(asm_file) as f:
+		asm = {ln.split(' ')[0]:(re.split(' \n| ;', ln)[0].replace(f"{ln.split(' ')[0]} ", '')).split(', ') for ln in f if len(ln.split()) > 1}
+		return asm
+
+with open(asm_file) as f:
+	tmp = {ln.split(' ')[0]:(re.split(' \n| ;', ln)[0].replace(f"{ln.split(' ')[0]} ", '')).split(', ') for ln in f if len(ln.split()) > 1}
+	print(tmp)
 
 def gen_refcache():
 	with open(_t16_format_) as f:
-		t16 = {}
-		for ln in f: #Loop generates dictionary. keys:values = t16's op (name:format)
-			opf = [ln][0].split(' ', 1)
-			if len(opf) == 2:
-				t16[opf[0]] = opf[1].replace('\n', '').replace(' ', '')
-		_t16_ = t16
+		_t16_ = {ln.split()[0]:ln.split()[1] for ln in f if len(ln.split()) > 1} #puts t16isa into dict
 	asm_cmd = [l[0] for l in _asm_] #Extracts assembly command from list of tuples
 	ref = {k:_t16_[k] for k in _t16_ if k in asm_cmd} #generate doctionary of matching keys command:format
 	return ref
+
+def opr_parse(asm, rc): 
+	#unzip each unique char -> [chars, aka set()]
+	in_rc = (list(set(rc[i].replace('-', ''))) for i in rc)
+	print(asm)
+	print(rc)
+	print(in_rc)
+	for a in asm:
+		# oprs = {a:f"{i[1][1:]:0{rc[i].count(f'{in_rc}')}b}" for i in a if type(i[0]) == str}
+		print(type(f'{a[1][0]}'))
+	# print(oprs)	
 	
-def charsum(val, ls):
-	n = 0
-	for i in ls:
-		if i == val:
-			n += 1
-	return n
-	
-def opr_parse(operands, body): #XXXXXX-CCC-BBB-AAA
-	#unzip each unique char -> [chars, aka set()
 	#decode bit range of each operand -> [max]
+	# nest_asm = {:{in_rc[i][]}}
+	
 	#assemble, generating tuples.append((chars[x], f"{opr[1:]:0{blenth of opetand}b}"))
 	#finally the tuples[1] can be joined to form the binary file.
 	#Note: op code and subops must be reattached to operands
-	
-	
 	return
-	
 	
 def assemble(asm, ref):
 	opr_list = ['A', 'B', 'C'] #legacy
@@ -84,13 +69,13 @@ def assemble(asm, ref):
 				print(tmp)
 				i = tmp.index(opr)
 				char = opr_list[i]
-				bits = charsum(char, fmt)
+				bits = fmt.count(opr_list[i])
 				print((char, bits))
 				tmp.insert(i, '')
 				tmp.remove(opr)
 			else: #if imm
 				i = tmp.index(opr)
-				n = charsum('N', fmt)
+				n = fmt.count('N')
 				mx_imm = (2**n)-1
 				print((opr[0],mx_imm))
 				tmp.insert(i, '')
@@ -100,10 +85,9 @@ def assemble(asm, ref):
 
   
 _asm_ = get_asm(asm_file)
-_t16_ = get_t16()
 refcache = gen_refcache()
 #debugging:
-# print(_asm_)
 # print(refcache)
-print(assemble(_asm_, refcache))
+# print(assemble(_asm_, refcache))
 # print(list(operand_check.keys())[list(operand_check.values()).index(True)]) #return key using value↓
+# opr_parse(_asm_, refcache)
