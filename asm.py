@@ -1,112 +1,109 @@
 from sys import argv
-import re, string, math
+import re, math
 
 script, asm_file, bin_txt = argv #variables extracted from shell
+
 _t16_format_ = '_t16_format_'
 _t16_bwidth = 16
 _t16_brange = [range(-2**_t16_bwidth, (2**_t16_bwidth)-1)]
 _t16_sregs, _t16_fregs, _t16_vregs = (8, 8, 8)
+_t16_misc = {
+	'k': 0,					# peeK mask
+	'p': 1,					# poP mask
+	'$': 'NOT IMPLEMENTED',	# Variable indicator - of I wanma go that far
+}
 
-def get_asm(file):
-	with open(file) as f:
-		asm = [(ln.split(' ', 1)[0],re.split(' \n| ;', ln.split(' ', 1)[1])[0].split(', ')) for ln in f if len(ln.split()) > 1]
-		return asm
+#linked dict stricture:
+#dict_a[dict_b[dict_a[x][0]]] -> ((dict_c adr), [data_1, data_2,...])
 
-def gen_refcache():
+
+
+def get_asm():
+	with open(asm_file, 'r') as f:
+		asm = {k: (v.split(' ', 1)[0], re.split(' \n| ;', v.split(' ', 1)[1])[0]) for k, v in enumerate(f) if len(v.split()) >= 3}
+		return asm #final .split(', ') removed to preserve order
+
+def get_refcache():
 	with open(_t16_format_) as f:
-		_t16_ = {ln.split()[0]:ln.split()[1] for ln in f if len(ln.split()) > 1} #t16isa -> dictionary
-	asm_cmd = [l[0] for l in _asm_] #Extracts assembly command from list of tuples
-	ref = {k:_t16_[k] for k in _t16_ if k in asm_cmd} #generate dictionary of matching keys command:format
-	return ref
+		rc = {ln.split()[0]: ln.split()[1] for ln in f if len(ln.split()) > 1}
+	#generate dictionary {command: (format, oprand bits)}
+	refcache = {v[0]: rc[v[0]].replace('-', '') for v in _asm_.values()}
+	return refcache #rc[op] -> {qsfmt, [operand list]}
 
-def opr_parse(asm, rc): 
-	# print(asm) #debugging
-	# print(rc) #debugging
-	#unzip each unique char in position 0
+def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
+	if len(re.findall('M|N|C|B|A', entry[1][0])) > 0:
+
+		# one or more operand to be processed
+		print(entry)
+		opr_dic = entry[1][1]
+		fmt = entry[1][0]
+		print(entry[0])
+		entry_opr = entry[0].rsplit(', ', 1)
+		print('--rsplit--')
+		print(entry_opr)
+		# except AttributeError:
+		# 	print(entry[0])
+		# 	entry_opr = entry[0].split(', ')
+		# 	print('--split--')
+		# 	print(entry_opr)
+		# except:
+		# 	print(entry[0])
+		# 	print('--no split--')
+		# 	print(entry_opr)
+			# entry_opr = entry[0]
+		hot_opr = entry_opr[-1]
+		blen = len(re.findall(f"{fmt[-1]}", fmt))
+		print('hot opr 0: ', hot_opr)
+		print('blen:', blen)
+		try:
+			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr))
+			1/(abs(hot_val)+(hot_val))
+			print(hot_val, 'hot_operand is >0')
+			opr_dic[fmt[-1]] = f"{hot_val:0{int(blen)}b}"
+		except ZeroDivisionError:
+			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr))
+			print(hot_val, 'hot_operand is <1')
+			if hot_val != 0:
+				opr_dic[fmt[-1]] = bin(((1<<blen)-1)-(~hot_val))[2:]
+			else:
+				opr_dic[fmt[-1]] = f"{hot_val:0{int(blen)}b}"
+		except:
+			try:
+				hot_val = re.sub('[ |\n]', '', hot_opr)
+				print('hot_val,',hot_val,'is string?')
+				opr_dic[fmt[-1]] = _t16_misc[hot_val]
+			except: #learn how to give accurate error messages
+				print(f"please check assembly file for errors.\n\tHINT: Err in {entry}")
+				return exit()
+			
+		print(opr_dic[fmt[-1]])
+		fmt = fmt.replace(fmt[-1], '')
+		print('--ret--')
+		return parse((entry_opr[0], (fmt, opr_dic)))
+	else:
+		return entry[1][1]
 	
-	for op, l in asm:
-		print()
-		fmt = rc[op]
-		chars = re.findall('N|C|B|A', fmt)
-		print(f"{chars} <- chars")
-		opr = {}
-		opr[op] = [len(c*chars.count(c)) for c in set(chars)]
-		print((op, fmt))
-		print(opr)
-		print(l) 
-		par_list = []
-		blen = opr[op]
-		print(blen)
-		ls = 0
-		for i in l: 
-			bits = blen[ls]
-			# bits = 4
-			print(f"test {blen[ls]}")
-			try: #if first operand char is an int
-				if int(i) >= 0:
-					par_list.append((f"{int(i):0{bits}b}"))
-				else:
-					#(10**(len(i) - 1))-int(i) = 10's complement
-					par_list.append((f"{((10**(len(i) - 1))-int(i)):0{bits}b}"))
-			except: #else it's a string
-				par_list.append((f"{int(i[1:]):0{bits}b}"))
-			opr[op] = par_list
-			ls += 1
-			print(f"list position {bits}")
-		print(f"{opr} <- after loop")
-		print(par_list)
-		
-		
-	#finally the tuples[1] can be joined to form the binary file.
-	#Note: op code and subops must be reattached to operands
-	return
-	
-def assemble(asm, rc):
-	# print(asm) #debugging
-	# print(rc) #debugging
-	#unzip each unique char in position 0
-	for op, l in asm:
-		print()
-		fmt = rc[op]
-		chars = re.findall('N|C|B|A', fmt)
-		char_set = set(chars)
-		opr, tmp_d = {}, {}
-		ls = (o for o in l)
-		opr[op] = {c: (next(ls), len(c*chars.count(c))) for c in char_set}
-		print(f"{(op, l)}\n{(op, fmt)}\t<- debug\n{chars} <- chars")
-		print((opr))
-		#{int(i[1:]):0{bits}b}
-		#{int(k 0):0{len(k.count(k)}b}
-		o_index = 0
-		
-		# for i in opr[op].values(): #i = bit length
-		# 	print(f"{i} <- i")
-		# 	try:
-		# 		if int(i) >= 0:
-		# 			print((f"{int(l[o_index]):0{i}b}"))
-		# 		else:
-		# 			#(10**(len(i) - 1))-int(i) = 10's complement
-		# 			print((f"{((10**(len(l[o_index]) - 1))-int(l[o_index])):0{int(i)}b}"))
-		# 	except:
-		# 		print(f"{int(l[o_index][1:]):0{int(i)}b}")
-		# 	o_index += 1
+#(10**(len(i) - 1))-int(i) = 10's complement
+# print(list(operand_check.keys())[list(operand_check.values()).index(True)]) #return key using value
 
 
-
-
-
-
-
-
-
-
-
-
-_asm_ = get_asm(asm_file)
-refcache = gen_refcache()
 #debugging:
-# print(_asm_)
-# print(refcache)
-# print(list(operand_check.keys())[list(operand_check.values()).index(True)]) #return key using value↓
+# print(f"{} <- ") <- copy
 
-assemble(_asm_, refcache)
+
+
+def main():
+	global _asm_, _rc_
+	_asm_ = get_asm()		#asm[i-line] -> (op, 'oper str')
+	_rc_ = get_refcache()	#rc[op] -> (fmt, [operand list])
+	_t16_ = {}
+	### DO NOT MODIFY _ASM_ OR _RC_. THEY ARE GLOBAL. ###
+	print([_rc_[_asm_[a][0]] for a in _asm_])
+	for l in _asm_.keys(): 	
+		tmp = {}
+		#parse(('oper str', ('fmt', {}))) <- empty dict
+		_t16_[l] = ((_rc_[_asm_[l][0]], parse((_asm_[l][1], (_rc_[_asm_[l][0]], tmp)))))
+	print(_t16_)
+	return print('done')
+	
+main()
