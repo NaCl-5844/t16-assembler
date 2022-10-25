@@ -1,22 +1,16 @@
 from sys import argv
-import re, math
+import re
 
 script, asm_file, bin_txt = argv #variables extracted from shell
 
 _t16_format_ = '_t16_format_'
 _t16_bwidth = 16
-_t16_brange = [range(-2**_t16_bwidth, (2**_t16_bwidth)-1)]
 _t16_sregs, _t16_fregs, _t16_vregs = (8, 8, 8)
 _t16_misc = {
 	'k': 0,					# peeK mask
 	'p': 1,					# poP mask
-	'$': 'NOT IMPLEMENTED',	# Variable indicator - of I wanna go that far
+	'$': 'NOT IMPLEMENTED',	# Variable indicator - if I go that far
 }
-
-#linked dict stricture:
-#dict_a[dict_b[dict_a[x][0]]] -> ((dict_c adr), [data_1, data_2,...])
-
-
 
 def get_asm():
 	with open(asm_file, 'r') as f:
@@ -26,69 +20,57 @@ def get_asm():
 def get_refcache():
 	with open(_t16_format_) as f:
 		rc = {ln.split()[0]: ln.split()[1] for ln in f if len(ln.split()) > 1}
-	#generate dictionary {command: (format, oprand bits)}
+	#generate dictionary {command: format}
 	refcache = {v[0]: rc[v[0]].replace('-', '') for v in _asm_.values()}
-	return refcache #rc[op] -> {qsfmt, [operand list]}
+	return refcache #refcache[op] -> fmt
 
 def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 	if len(re.findall('M|N|C|B|A', entry[1][0])) > 0:
-
-		# one or more operand to be processed
-		print(entry)
+	# one or more operand to be processed
 		opr_dic = entry[1][1]
 		fmt = entry[1][0]
-		print(entry[0])
 		entry_opr = entry[0].rsplit(', ', 1)
-		print('--rsplit--')
-		print(entry_opr)
 		hot_opr = entry_opr[-1]
 		blen = len(re.findall(f"{fmt[-1]}", fmt))
-		print('hot opr 0: ', hot_opr)
-		print('blen:', blen)
 		try:
-			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr))
-			1/(abs(hot_val)+(hot_val))
-			print(hot_val, 'hot_operand is >0')
+			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr)) # <-- gets calculated regardless of exception
+			1/(abs(hot_val)+(hot_val)) #if val is +ve, 1/2*val else 1/0
+			# -ve values are exceedingly rare as only immediates use them
 			opr_dic[fmt[-1]] = f"{hot_val:0{int(blen)}b}"
 		except ZeroDivisionError:
-			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr))
-			print(hot_val, 'hot_operand is <1')
-			if hot_val != 0:
-				opr_dic[fmt[-1]] = bin(((1<<blen)-1)-(~hot_val))[2:]
-			else:
+			if hot_val != 0: # -ve values get bitmasked before being converted to binary
+				opr_dic[fmt[-1]] = f"{((1<<blen)-1)-(~hot_val):0{int(blen)}b}"
+			else: # If 0. I don't like how my (duck?) method exclude r0
 				opr_dic[fmt[-1]] = f"{hot_val:0{int(blen)}b}"
 		except:
 			try:
 				hot_val = re.sub('[ |\n]', '', hot_opr)
-				print('hot_val,',hot_val,'is string?')
-				opr_dic[fmt[-1]] = _t16_misc[hot_val]
-			except: #learn how to give accurate error messages
+				opr_dic[hot_val] = str(_t16_misc[hot_val])
+				return parse((entry_opr[0], (fmt, opr_dic)))
+			except: #learn how to give more + accurate error messages
 				print(f"please check assembly file for errors.\n\tHINT: Err in {entry}")
 				return exit()
-			
-		print(opr_dic[fmt[-1]])
 		fmt = fmt.replace(fmt[-1], '')
-		print('--ret--')
 		return parse((entry_opr[0], (fmt, opr_dic)))
 	else: # entry = ('op,er,an,ds', ('fmt', {}))
-		entry[1][1]['X'] = entry[1][0]
+		entry[1][1]['X|S|F'] = entry[1][0]
 		return entry[1][1]
-	
-
-
 
 def main():
 	global _asm_, _rc_
 	_asm_ = get_asm()		#asm[i-line] -> (op, 'oper str')
-	_rc_ = get_refcache()	#rc[op] -> (fmt, [operand list])
+	_rc_ = get_refcache()	#rc[op] -> 'fmt'
 	_t16_ = {}
-	### DO NOT MODIFY _ASM_ OR _RC_. THEY ARE GLOBAL. ###
-	print([_rc_[_asm_[a][0]] for a in _asm_])
+	_bytecode_ = open(bin_txt, 'w')
 	for l in _asm_.keys(): 	
 		tmp = {}
 		#parse(('oper str', ('fmt', {}))) <- empty dict
+		#output[l] = 't16 bytecode'
 		_t16_[l] = ((_rc_[_asm_[l][0]], parse((_asm_[l][1], (_rc_[_asm_[l][0]], tmp)))))
-	print(_t16_)
+		_t16_[l] = ''.join(list(reversed(_t16_[l][1].values())))
+		_bytecode_.write(f"{_t16_[l]}\n")
+	_bytecode_.close()
+	print(f"\nReference cache:\n{_rc_}\nT16 bytecode:\n{_t16_}")
 	return print('done')
 	
 main()
