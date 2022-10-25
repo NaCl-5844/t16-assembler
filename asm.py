@@ -10,7 +10,7 @@ _t16_sregs, _t16_fregs, _t16_vregs = (8, 8, 8)
 _t16_misc = {
 	'k': 0,					# peeK mask
 	'p': 1,					# poP mask
-	'$': 'NOT IMPLEMENTED',	# Variable indicator - of I wanma go that far
+	'$': 'NOT IMPLEMENTED',	# Variable indicator - of I wanna go that far
 }
 
 #linked dict stricture:
@@ -41,16 +41,6 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 		entry_opr = entry[0].rsplit(', ', 1)
 		print('--rsplit--')
 		print(entry_opr)
-		# except AttributeError:
-		# 	print(entry[0])
-		# 	entry_opr = entry[0].split(', ')
-		# 	print('--split--')
-		# 	print(entry_opr)
-		# except:
-		# 	print(entry[0])
-		# 	print('--no split--')
-		# 	print(entry_opr)
-			# entry_opr = entry[0]
 		hot_opr = entry_opr[-1]
 		blen = len(re.findall(f"{fmt[-1]}", fmt))
 		print('hot opr 0: ', hot_opr)
@@ -80,15 +70,10 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 		fmt = fmt.replace(fmt[-1], '')
 		print('--ret--')
 		return parse((entry_opr[0], (fmt, opr_dic)))
-	else:
+	else: # entry = ('op,er,an,ds', ('fmt', {}))
+		entry[1][1]['X'] = entry[1][0]
 		return entry[1][1]
 	
-#(10**(len(i) - 1))-int(i) = 10's complement
-# print(list(operand_check.keys())[list(operand_check.values()).index(True)]) #return key using value
-
-
-#debugging:
-# print(f"{} <- ") <- copy
 
 
 
