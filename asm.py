@@ -73,4 +73,5 @@ def main():
 	print(f"\nReference cache:\n{_rc_}\nT16 bytecode:\n{_t16_}")
 	return print('done')
 	
-main()
+if __name__ == "__main__":
+	main()
