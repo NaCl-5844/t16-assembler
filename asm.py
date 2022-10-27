@@ -89,6 +89,6 @@ def main():
 			return exit()
 	_bytecode_.close()
 	return print('done')
-	
-main()
 
+if __name__ == "__main__":
+	main()
