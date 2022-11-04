@@ -33,35 +33,37 @@ def get_rc():
 	return rc #rc[op] -> fmt
 
 def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
-	if len(re.findall('M|N|C|B|A', entry[1][0])) > 0:
+# Naive implementation: only looks at end of format for opr_dic and replacement
+# Smart implementation: base opr_dic and replacement on re.findall('M|N|C|B|A')
+	fmt = entry[1][0]
+	hot_fmt = re.findall('M|N|C|B|A', fmt)
+	if len(hot_fmt) > 0:
 	# one or more operand to be processed
-		fmt = entry[1][0]
 		opr_dic = entry[1][1]
 		entry_opr = entry[0].rsplit(', ', 1)
 		hot_opr = entry_opr[-1]
-		blen = len(re.findall(f"{fmt[-1]}", fmt))
+		blen = len(re.findall(f"{hot_fmt[-1]}", fmt))
 		try:
 			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr)) # <-- gets calculated regardless of exception
 			1/(abs(hot_val)+(hot_val)) #if val is +ve, 1/2*val else 1/0
 			# -ve values are exceedingly rare as only immediates use them
-			opr_dic[fmt[-1]] = f"{hot_val:0{int(blen)}b}"
+			opr_dic[hot_fmt[-1]] = f"{hot_val:0{int(blen)}b}"
 		except ZeroDivisionError:
 			if hot_val != 0: # -ve values get bitmasked before being converted to binary
-				opr_dic[fmt[-1]] = f"{((1<<blen)-1)-(~hot_val):0{int(blen)}b}"
-			else: # If 0. I don't like how my (duck?) method exclude r0
-				opr_dic[fmt[-1]] = f"{hot_val:0{int(blen)}b}"
+				opr_dic[hot_fmt[-1]] = f"{((1<<blen)-1)-(~hot_val):0{int(blen)}b}"
+			else: # If 0. ## I don't like how my (duck?) method excludes r0
+				opr_dic[hot_fmt[-1]] = f"{hot_val:0{int(blen)}b}"
 		except:
-			try:
+			try: # string supplied as operand is searched in _t16_misc to find it's binary value
 				hot_val = re.sub('[ |\n]', '', hot_opr)
-				opr_dic[hot_val] = str(_t16_misc[hot_val])
-				return parse((entry_opr[0], (fmt, opr_dic)))
-			except: #learn how to give more + accurate error messages
-				print(f"please check assembly file for errors.\n\tHINT: Err in {entry}")
-				return exit()
-		fmt = fmt.replace(fmt[-1], '')
+				opr_dic[hot_fmt[-1]] = str(_t16_misc[hot_val])
+			except Exception: #learn how to give more + accurate error messages
+				print(f"Unknown Error: Check assembly file for errors.\n\tHINT: Err in {entry}")
+				exit()
+		fmt = fmt.replace(hot_fmt[-1], '')
 		return parse((entry_opr[0], (fmt, opr_dic)))
-	else: # entry = ('op,er,an,ds', ('fmt', {})/)
-		entry[1][1]['X|S|F'] = entry[1][0]
+	else: # entry = ('op,er,an,ds', ('fmt', {}))
+		entry[1][1]['X|F|S'] = entry[1][0]
 		return entry[1][1]
 
 def main():
@@ -82,11 +84,11 @@ def main():
 		except KeyError:
 			print(f"KeyError:: Line {l}, in <{asm_file}>:\n  HINT: no instruction '{_asm_[l][0]}' found in T16's isa.")
 			_bytecode_.close()
-			return exit()
+			exit()
 		except:
-			print(f"Unknown Error: Check your assembly and _t16_format_ for errors")
+			# print(f"Unknown Error: Check your assembly and _t16_format_ for errors")
 			_bytecode_.close()
-			return exit()
+			exit()
 	_bytecode_.close()
 	return print('done')
 
