@@ -17,7 +17,7 @@ def get_asm():
 	with open(asm_file, 'r') as f:
 		for k, v in enumerate(f):
 			hot_cmd = re.split(' ', v, 1)
-			if len(v.split()) >= 3:
+			if len(v.split()) >= 2:
 				asm[k] = (hot_cmd[0], re.split(' \n| ;', hot_cmd[1])[0])
 		return asm #asm[i-line] -> (op, 'oper str')
 
@@ -30,15 +30,12 @@ def get_rc():
 			if len(hot_ln) > 1:
 				if hot_ln[0] in op_set:
 					rc[hot_ln[0]] = hot_ln[1].replace('-', '')
-	return rc #rc[op] -> fmt
+		return rc #rc[op] -> fmt
 
 def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
-# Naive implementation: only looks at end of format for opr_dic and replacement
-# Smart implementation: base opr_dic and replacement on re.findall('M|N|C|B|A')
 	fmt = entry[1][0]
 	hot_fmt = re.findall('M|N|C|B|A', fmt)
-	if len(hot_fmt) > 0:
-	# one or more operand to be processed
+	if len(hot_fmt) > 0: # one or more operand to be processed
 		opr_dic = entry[1][1]
 		entry_opr = entry[0].rsplit(', ', 1)
 		hot_opr = entry_opr[-1]
@@ -51,6 +48,7 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 		except ZeroDivisionError:
 			if hot_val != 0: # -ve values get bitmasked before being converted to binary
 				opr_dic[hot_fmt[-1]] = f"{((1<<blen)-1)-(~hot_val):0{int(blen)}b}"
+				tmp = f"{((1<<blen)-1)-(~hot_val):0{int(blen)}b}"
 			else: # If 0. ## I don't like how my (duck?) method excludes r0
 				opr_dic[hot_fmt[-1]] = f"{hot_val:0{int(blen)}b}"
 		except:
@@ -60,11 +58,10 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 			except Exception: #learn how to give more + accurate error messages
 				print(f"Unknown Error: Check assembly file for errors.\n\tHINT: Err in {entry}")
 				exit()
-		fmt = fmt.replace(hot_fmt[-1], '')
+		fmt = fmt.replace(hot_fmt[-1], '', (blen-1)).replace(hot_fmt[-1], opr_dic[hot_fmt[-1]])
 		return parse((entry_opr[0], (fmt, opr_dic)))
 	else: # entry = ('op,er,an,ds', ('fmt', {}))
-		entry[1][1]['X|F|S'] = entry[1][0]
-		return entry[1][1]
+		return entry[1][0]
 
 def main():
 	global _asm_, _rc_
@@ -79,7 +76,6 @@ def main():
 			#output[l] = 't16 bytecode'
 			asm_ln = _asm_[l]
 			_t16_[l] = parse((asm_ln[1], (_rc_[asm_ln[0]], tmp)))
-			_t16_[l] = ''.join(list(reversed(_t16_[l].values())))
 			_bytecode_.write(f"{_t16_[l]}\n")
 		except KeyError:
 			print(f"KeyError:: Line {l}, in <{asm_file}>:\n  HINT: no instruction '{_asm_[l][0]}' found in T16's isa.")
