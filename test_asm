@@ -2,7 +2,7 @@ xor r1, r1, r1 ;this is a comment - set r1 to 0
 lim -3, r0 ;setup for loop
 lim 1, r2 ; so is this.
 jir 3 ;skip over conditionals
-int 0 ;if r3 = -2: interupts with code 0 
+hlt 0 ;if r3 = -2: halts with code 0 
 ret 0 ;if r3 = -1: exits code back to main program
 add r1, r2, r1
 add r2, r2, r1 
