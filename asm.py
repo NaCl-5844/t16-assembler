@@ -65,10 +65,6 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 			_debug_[v](entry)
 		except:
 			pass
-		# _bin_ = 'poopyhead' # entry[1][0]
-		# print(_bin_)
-		# bits = len(_bin_) >> 2
-		# _bytecode_ = _argv_lookup[_argv_]
 		return entry[1][0]
 
 def gen_output(data, fmt):
@@ -82,29 +78,20 @@ def gen_output(data, fmt):
 		exit()
 	
 def main():
-	global _argv_, _debug_,
-	version = '[v1.4.0]'
+	global _argv_, _debug_, v
+	version = '[v2.0.0]'
 	_debug_ = {'v' : print}
-	_argv_data = {
-		# 'ibits': 0,
-		# '_bin_': 0,
-		# 'b' : _argv_data['_bin_'],
-		# 'x' : f"{_argv_data['_bin_'], 2:0{_argv_data['ibits']>>2}X}",
-		# 'xb': f"{_argv_data['_bin_'], 2:0{_argv_data['ibits']>>2}X} {_bin_}",
-		# 'bx': f"{_bin_} {_argv_data['_bin_'], 2:0{_argv_data['ibits']>>2}X}",
-		# 'h' : f"\nT16 assembler{version}\n  -h\tHelp\n  -v\tVerbose output/debug\n  -b\tBinary output[Default]\n  -x\tHexadecimal output\nExample: -vxb == verbose hex + bin ouput",
-	}
+	_help_ =  f"\nT16 assembler{version}\n  -h\tHelp\n  -v\tVerbose output/debug\n  -b\tBinary output[Default]\n  -x\tHexadecimal output\nExample: -vxb == verbose hex + bin ouput",
 	# ---- argv checks and collection ---- #
 	if (argv[1][0] == '-') & (len(argv) == 4):
 		if 'h' in argv[1]: # --help
-			print(_argv_misc['h'])
+			print(_help_)
 			exit()
 		if 'v' in argv[1]: # --verbose
 			v = 'v'
 			_argv_ = argv[1].replace(v, '').replace('-', '')
 		else:
 			_argv_ = argv[1].replace('-', '')
-		print(_argv_)
 		_asm_ = get_asm(argv[2]) # asm[i-line] -> (op, 'oper str')
 	elif len(argv) == 3: # default: --binary
 		_argv_ = 'b'
@@ -120,16 +107,12 @@ def main():
 	except:
 		pass
 	_t16_ = {}
-	_argv_data = {
-		
-	}
 	_bytecode_ = open(argv[-1], 'w')
 	for l in _asm_.keys(): # main loop
 		try: # parse(('oper str', ('fmt', {}))) <- empty dict
 			tmp = {}
 			asm_ln = _asm_[l]
-			_t16_[l] = parse((asm_ln[1], (_rc_[asm_ln[0]], tmp)))
-			print(gen_output(_t16_[l], _argv_))
+			_t16_[l] = gen_output(parse((asm_ln[1], (_rc_[asm_ln[0]], tmp))), _argv_)
 			_bytecode_.write(f"{_t16_[l]}\n")
 		except KeyError:
 			print(f"KeyError:: Line {l}, in <{argv[-2]}>:\n\tHINT: no instruction '{_asm_[l][0]}' found in T16's isa.")
@@ -140,7 +123,10 @@ def main():
 			_bytecode_.close()
 			exit()
 	_bytecode_.close()
-	print(_t16_)
+	try: # if '-v' passed into command line args
+		_debug_[v](_t16_) # Didn't want to make the main loop any longer so printing _t16_ all at once'
+	except:
+		pass
 	return print('done')
 
 if __name__ == "__main__":
