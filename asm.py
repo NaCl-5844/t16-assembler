@@ -4,9 +4,7 @@ import re
 ### TODO{
 ## v1.4.0:
 # - output format[bx] can use both formats side by side, eg 1100110011001100 CCCC
-## v1.5.0:
-# - add a way to convert output files between binary and hex 
-## v2.0.0 == v.1.5.x has all features finished and debugged
+## v2.0.0 == v.1.4.x has all features finished and debugged
 ### }
 
 def get_asm(file):
@@ -73,12 +71,19 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 		# _bytecode_ = _argv_lookup[_argv_]
 		return entry[1][0]
 
-def binconcat(n, arg):
-	return print()
+def gen_output(data, fmt):
+	dec = int(str(data), 2)
+	bits = len(str(data))
+	fmt_dict = {'b': f"{dec:0{bits}b}",'x': f"{dec:0{bits>>2}X}",'bx': f"{dec:0{bits}b} {dec:0{bits>>2}X}",'xb': f"{dec:0{bits>>2}X} {dec:0{bits}b}",}
+	try:
+		return fmt_dict[fmt]
+	except:
+		print('UnknownError::')
+		exit()
 	
 def main():
-	global _argv_, _debug_, v
-	version = '[v1.3.2]'
+	global _argv_, _debug_,
+	version = '[v1.4.0]'
 	_debug_ = {'v' : print}
 	_argv_data = {
 		# 'ibits': 0,
@@ -124,7 +129,7 @@ def main():
 			tmp = {}
 			asm_ln = _asm_[l]
 			_t16_[l] = parse((asm_ln[1], (_rc_[asm_ln[0]], tmp)))
-			print(binconcat(_t16_[l], _argv_))
+			print(gen_output(_t16_[l], _argv_))
 			_bytecode_.write(f"{_t16_[l]}\n")
 		except KeyError:
 			print(f"KeyError:: Line {l}, in <{argv[-2]}>:\n\tHINT: no instruction '{_asm_[l][0]}' found in T16's isa.")
