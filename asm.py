@@ -2,9 +2,18 @@ from sys import argv
 import re
 
 ### TODO{
-## v1.4.0:
-# - output format[bx] can use both formats side by side, eg 1100110011001100 CCCC
-## v2.0.0 == v.1.4.x has all features finished and debugged
+## v2.0.0  -> v3.0.0: Implement line tags
+# -[v2.1.0]- adjust get_asm parsing to deal with tabs and line
+#		   - fix "bug" where '\n' doesn't get removed in get_asm()
+# -[v2.2.0]- find and collect line addresses at parse 
+#		   - _asm_, _tags_ = get_asm(file): return asm, tags
+#		   - must check if tags are called more than once -> err
+# -[v2.3.0]- insert addresses when assembling
+# -[v2.4.0]- type/subop sugar, eg: psuad -> padd.su, psssu -> psub.ss
+## v3.0.0  -> v4.0.0: Sugar Sugar ;) 
+# -[v3.1.0]- Assembly cache to save re computing 
+# -[v3.2.0]- Figure out how to operate on a file while it's being read
+# -[v3.?.?]- Variables(spooky), only after t16-emulator hits v1.0.0 
 ### }
 
 def get_asm(file):
@@ -39,8 +48,8 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 		opr_dic = entry[1][1]
 		entry_opr = entry[0].rsplit(', ', 1)
 		hot_opr = entry_opr[-1]
-		blen = len(re.findall(f"{hot_fmt[-1]}", fmt)) ### >> 2 if option = '-x'
-		try:
+		blen = len(re.findall(f"{hot_fmt[-1]}", fmt)) 
+		try: # extract addresses or immediates
 			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr)) # <-- gets calculated regardless of exception
 			hot_val>>hot_val # -ve shifts generate a ValueError
 			opr_dic[hot_fmt[-1]] = f"{hot_val:0{int(blen)}b}" 
@@ -70,7 +79,12 @@ def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
 def gen_output(data, fmt):
 	dec = int(str(data), 2)
 	bits = len(str(data))
-	fmt_dict = {'b': f"{dec:0{bits}b}",'x': f"{dec:0{bits>>2}X}",'bx': f"{dec:0{bits}b} {dec:0{bits>>2}X}",'xb': f"{dec:0{bits>>2}X} {dec:0{bits}b}",}
+	fmt_dict = {
+		'b': f"{dec:0{bits}b}",
+		'x': f"{dec:0{bits>>2}X}",
+		'bx': f"{dec:0{bits}b} {dec:0{bits>>2}X}",
+		'xb': f"{dec:0{bits}b} {dec:0{bits>>2}X}",
+	}
 	try:
 		return fmt_dict[fmt]
 	except:
@@ -79,11 +93,12 @@ def gen_output(data, fmt):
 	
 def main():
 	global _argv_, _debug_, v
-	version = '[v2.0.0]'
+	version = '[v2.0.1]'
 	_debug_ = {'v' : print}
 	_help_ =  f"\nT16 assembler{version}\n  -h\tHelp\n  -v\tVerbose output/debug\n  -b\tBinary output[Default]\n  -x\tHexadecimal output\nExample: -vxb == verbose hex + bin ouput",
 	# ---- argv checks and collection ---- #
-	if (argv[1][0] == '-') & (len(argv) == 4):
+	arg_len = len(argv)
+	if (argv[1][0] == '-') & (arg_len == 4):
 		if 'h' in argv[1]: # --help
 			print(_help_)
 			exit()
@@ -93,7 +108,7 @@ def main():
 		else:
 			_argv_ = argv[1].replace('-', '')
 		_asm_ = get_asm(argv[2]) # asm[i-line] -> (op, 'oper str')
-	elif len(argv) == 3: # default: --binary
+	elif arg_len == 3: # default: --binary
 		_argv_ = 'b'
 		_asm_ = get_asm(argv[1]) # asm[i-line] -> (op, 'oper str')
 	else:
