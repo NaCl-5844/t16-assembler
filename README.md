@@ -12,4 +12,4 @@ Throughput 16 is a 16-bit processor with the aim of using SIMD vectors to increa
 
 [Emulator:](https://github.com/NaCl-5844/t16-emulator)
 
-WIP: Will make the repo public once I have hit version 1.0.0 (usable)
+WIP: Will make the repo public once I have hit version 1.0.0 (usable). For now check out [s16](https://github.com/NaCl-5844/s16-emulator)
