@@ -1,149 +1,139 @@
+#!/usr/bin/env python
 from sys import argv
 import re
+# Long Term Goals:
+# > Code and assemble in the command-line/shell then output to hex/bin file
 
-### TODO{
-## v2.0.0  -> v3.0.0: Implement line tags
-# -[v2.1.0]- adjust get_asm parsing to deal with tabs and line
-#		   - fix "bug" where '\n' doesn't get removed in get_asm()
-# -[v2.2.0]- find and collect line addresses at parse 
-#		   - _asm_, _tags_ = get_asm(file): return asm, tags
-#		   - must check if tags are called more than once -> err
-# -[v2.3.0]- insert addresses when assembling
-# -[v2.4.0]- type/subop sugar, eg: psuad -> padd.su, psssu -> psub.ss
-## v3.0.0  -> v4.0.0: Sugar Sugar ;) 
-# -[v3.1.0]- Assembly cache to save re computing 
-# -[v3.2.0]- Figure out how to operate on a file while it's being read
-# -[v3.?.?]- Variables(spooky), only after t16-emulator hits v1.0.0 
-### }
+class InstructionMatchError(KeyError):
+    pass
+class FormatFileError(ValueError):
+    pass
+class AssemblyError(ValueError):
+    pass
+class LineArgumentError(KeyError):
+    pass
 
-def get_asm(file):
-	asm = {}
-	f = open(file, 'r')
-	for k, v in enumerate(f):
-		hot_cmd = re.split(' ', v, 1)
-		if len(v.split()) >= 2:
-			asm[k] = (hot_cmd[0], re.split(' \n| ;', hot_cmd[1])[0])
-	f.close()
-	return asm #asm[i-line] -> (op, 'oper str')
+def get_assembly(assembly_file):
+    assembly = {}
+    with open(assembly_file, 'r') as f:
+        for line_number, line in enumerate(f):
+            split_line = re.split(' ', line, 1)
+            if len(line.split()) >= 2:
+                assembly[line_number] = (split_line[0], (re.split('\n| ;', split_line[1])[0]).rstrip())
+                # print(f"file line number: {line_number}\nRaw line: {line}Split line: {split_line}\nAssembly: {assembly[line_number]}\n") # [ DEBUG ]
+    return assembly #assembly[line_address] -> (op, 'operand string')
 
-def get_rc(_asm_):
-	rc = {}
-	op_set = {v[0] for v in _asm_.values()}
-	with open('_t16_format_', 'r') as f:
-		for ln in f:
-			hot_ln = ln.split()
-			if len(hot_ln) > 1:
-				if hot_ln[0] in op_set:
-					rc[hot_ln[0]] = hot_ln[1].replace('-', '')
-	return rc #rc[op] -> fmt
+# Generate a {set} of (instruction,format) tuples to save time lookup/translation speed
+# Also assembles operation codes, e.g: ret = XXXXXXX-SSS-BBB-AAA -> 0001110-111-BBB-AAA
+def get_reference_cache(assembly, format_file):
+    reference_cache = {}
+    operation_set = {v[0] for v in assembly.values()}
+    with open(format_file, 'r') as f:
+        checksum, line_sum = 0, 0 # both variables equal zero
+        for line in f:
+            split_line = line.split()
+            if len(split_line) > 1 and split_line[0] in operation_set:
+                clean_line = split_line[1].replace('-', '')
+                reference_cache[split_line[0]] = clean_line
+                checksum += len(clean_line) # checksum checks for consistent bit length in source assembly
+                line_sum += 1 # aids in the checksum calculation
+                # print(checksum, line_sum) # [ DEBUG ]
+    if checksum == 16*line_sum: # lines*16 == lines*format_length
+        return reference_cache #reference_cache[op] -> format
+    else:
+        raise FormatFileError('Inconsistent bit-lengths in format file.') # BUG 001 -- fixed
 
-def parse(entry): # entry = ('op,er,an,ds', ('fmt', {}))
-	fmt = entry[1][0]
-	hot_fmt = re.findall('M|N|C|B|A', fmt)
-	if len(hot_fmt) > 0: # one or more operand to be processed
-		try: # if '-v' passed into command line args
-			_debug_[v](entry)
-		except:
-			pass
-		opr_dic = entry[1][1]
-		entry_opr = entry[0].rsplit(', ', 1)
-		hot_opr = entry_opr[-1]
-		blen = len(re.findall(f"{hot_fmt[-1]}", fmt)) 
-		try: # extract addresses or immediates
-			hot_val = int(re.sub('[a-zA-Z|\n]', '', hot_opr)) # <-- gets calculated regardless of exception
-			hot_val>>hot_val # -ve shifts generate a ValueError
-			opr_dic[hot_fmt[-1]] = f"{hot_val:0{int(blen)}b}" 
-		except ValueError: # -ve values get sign extended  ## -ve values are rare as only immediates use them
-			opr_dic[hot_fmt[-1]] = f"{((1<<blen)-1)-(~hot_val):0{int(blen)}b}"
-		except:
-			try: # string supplied as operand is searched in _t16_misc to find it's binary value
-				_t16_misc = {
-					'k': 0,					# peeK mask
-					'p': 1,					# poP mask
-					'$': 'NOT IMPLEMENTED',	# Variable indicator - if I go that far
-				}
-				hot_val = re.sub('[ |\n]', '', hot_opr)
-				opr_dic[hot_fmt[-1]] = str(_t16_misc[hot_val])
-			except Exception: #learn how to give more + accurate error messages
-				print(f"Unknown Error:: Check assembly file for errors.\n\tHINT: Err in parse({entry})")
-				exit()
-		fmt = fmt.replace(hot_fmt[-1], '', (blen-1)).replace(hot_fmt[-1], opr_dic[hot_fmt[-1]])
-		return parse((entry_opr[0], (fmt, opr_dic)))
-	else: # entry = ('op,er,an,ds', ('fmt', {}))
-		try: # if '-v' passed into command line args
-			_debug_[v](entry)
-		except:
-			pass
-		return entry[1][0]
+def parse(assembly, reference_cache, output_format):
+    print(f"Cleaned assembly:\n{assembly}")
+    bytecode = {}
+    for file_line, instruction in enumerate(assembly.values()): # assemble operation codes
+        operation, operands = instruction
+        print(file_line, operation, operands)                    # [ DEBUG ]
+        instruction_format = reference_cache.get(operation)
+        if instruction_format == None: # BUG 000 -- fixed
+            raise InstructionMatchError(f"Invalid instruction found: [{operation}] Please review assembly code or use a different _[x]16_format_")
+        bytecode[file_line] = (reference_cache[operation],
+                               operands,
+                               list(set(re.findall('N|C|B|A', instruction_format))))
+        # print(f"Incomplete bytecode: {bytecode[line]}\n")  # [ DEBUG ]
+    for line, partial_bytecode in enumerate(bytecode.values()): # assemble operands
+        code, assembly_operands, format_operands = partial_bytecode
+        for operand_count in range(len(format_operands)): # Nested loop becuase f**k you. That's why.
+            operand_length = len(re.findall(f"{format_operands[-1]}", code))
+            operand = format_operands[-1]
+            print(line, operand_count, operand, code, operand_length, assembly_operands, format_operands) # [ DEBUG ]
+            target_operand = assembly_operands.rsplit(', ', 1)
+            if target_operand[-1][0] == 'r':
+                try:
+                    target_value = int(target_operand[-1][1:])
+                except ValueError:
+                    raise AssemblyError(f"Error found on line {line+1}: {assembly[line]}")
+            else:
+                try:
+                    target_value = int(target_operand[-1])
+                except ValueError:
+                    raise AssemblyError(f"Error found on line {line+1}: {assembly[line]}")
+            if target_value < 0:
+                # This AWFUL line converts a signed value into it's binary 2's complement value
+                target_value = f"{((1<<operand_length)-1)+target_value+1:0{operand_length}{output_format}}"
+            else:
+                target_value = f"{target_value:0{operand_length}{output_format}}"
+            print(target_value)
+            code = (code.replace(operand*operand_length, target_value))
+            assembly_operands = target_operand[0]
+            format_operands.pop(-1)
+            print(code)
+            bytecode[line] = code
+    return bytecode
 
-def gen_output(data, fmt):
-	dec = int(str(data), 2)
-	bits = len(str(data))
-	fmt_dict = {
-		'b': f"{dec:0{bits}b}",
-		'x': f"{dec:0{bits>>2}X}",
-		'bx': f"{dec:0{bits}b} {dec:0{bits>>2}X}",
-		'xb': f"{dec:0{bits}b} {dec:0{bits>>2}X}",
-	}
-	try:
-		return fmt_dict[fmt]
-	except:
-		print('UnknownError::')
-		exit()
-	
+def store_to_file(bytecode, file_name):
+    with open(file_name, 'w') as output_file:
+        for line, code in enumerate(bytecode):
+            output_file.writelines(f"{bytecode[line]}\n")
+            print(bytecode[line]) # [ DEBUG ]
+
+def print_help():
+    print("""
+    OPTION\tDESCRIPTION
+
+    asm.py -[format/option] [assembly] [filename]
+
+    -h, --help\tPrint help
+    -b\t\tBinary Format
+    -h\t\tHexadecimal Format
+    -bh\t\tBoth formats, binary first
+    -hb\t\tBoth formats, hex first
+
+    """)
+    exit()
+
 def main():
-	global _argv_, _debug_, v
-	version = '[v2.0.1]'
-	_debug_ = {'v' : print}
-	_help_ =  f"\nT16 assembler{version}\n  -h\tHelp\n  -v\tVerbose output/debug\n  -b\tBinary output[Default]\n  -x\tHexadecimal output\nExample: -vxb == verbose hex + bin ouput",
-	# ---- argv checks and collection ---- #
-	arg_len = len(argv)
-	if (argv[1][0] == '-') & (arg_len == 4):
-		if 'h' in argv[1]: # --help
-			print(_help_)
-			exit()
-		if 'v' in argv[1]: # --verbose
-			v = 'v'
-			_argv_ = argv[1].replace(v, '').replace('-', '')
-		else:
-			_argv_ = argv[1].replace('-', '')
-		_asm_ = get_asm(argv[2]) # asm[i-line] -> (op, 'oper str')
-	elif arg_len == 3: # default: --binary
-		_argv_ = 'b'
-		_asm_ = get_asm(argv[1]) # asm[i-line] -> (op, 'oper str')
-	else:
-		print(f"Unknown Error:: .\n\tHINT:")
-		exit()
-	
-	# ---- parse and write _bytecode_ to file ---- #
-	_rc_ = get_rc(_asm_) #rc[op] -> 'fmt'
-	try: # if '-v' passed into command line args
-		_debug_[v](f"Argv:\n{argv}\nAssembly:\n{_asm_}\nReference Cache:\n{_rc_}")
-	except:
-		pass
-	_t16_ = {}
-	_bytecode_ = open(argv[-1], 'w')
-	for l in _asm_.keys(): # main loop
-		try: # parse(('oper str', ('fmt', {}))) <- empty dict
-			tmp = {}
-			asm_ln = _asm_[l]
-			_t16_[l] = gen_output(parse((asm_ln[1], (_rc_[asm_ln[0]], tmp))), _argv_)
-			_bytecode_.write(f"{_t16_[l]}\n")
-		except KeyError:
-			print(f"KeyError:: Line {l}, in <{argv[-2]}>:\n\tHINT: no instruction '{_asm_[l][0]}' found in T16's isa.")
-			_bytecode_.close()
-			exit()
-		except:
-			print(f"Unknown Error:: Check <{argv[-2]}> and '_t16_format_' for errors.")
-			_bytecode_.close()
-			exit()
-	_bytecode_.close()
-	try: # if '-v' passed into command line args
-		_debug_[v](_t16_) # Didn't want to make the main loop any longer so printing _t16_ all at once'
-	except:
-		pass
-	return print('done')
+    if '-h' in argv or '--help' in argv:
+        print_help() # prints help then exit()
+    try:
+        option = argv[-3]
+        if option in ['-h', '-b', '-x', '-bx', '-bx']:
+            print(option)
+            input_file = argv[-2]
+            output_file = argv[-1]
+        else:
+            raise KeyError
+    except IndexError:
+        print('\nA format, source assembly file and an output filename are required.')
+        print_help() # prints help then exit()
+        # print("Incorrect line arguments.Correct method:\npython asm.py -[b/x/bx/xb] [assembly_in] [filename_out]")
+    except KeyError:
+        print('\n Please use valid options.')
+        print_help() # prints help then exit()
+    cleaned_assembly = get_assembly(input_file)
+    ref_cache = get_reference_cache(cleaned_assembly, '_s16_format_') # Hardcoded format file -- should check if it exists?
+    binary_code = parse(cleaned_assembly, ref_cache, option[-1])
+    store_to_file(binary_code, output_file)
+    exit()
 
 if __name__ == "__main__":
-	main()
-	
+    main()
+
+
+
+
